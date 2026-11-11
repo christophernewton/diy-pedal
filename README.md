@@ -56,12 +56,28 @@ The knobs are read live, so changing effect picks up wherever the knobs are sitt
 | 3 | Bass synth | Saw / square / pulse | Octave +1 / 0 / -1 | Filter decay short / medium / long |
 | 4 | Envelope filter | Low-pass / band-pass / high-pass | Wide up / gentle up / down | |
 | 5 | Chorus | Flanger / chorus / vibrato | Stereo wide / normal / mono | |
-| 6 | Phaser | 8 / 6 / 4 stages | Stereo wide / normal / mono | |
+| 6 | Phaser | 6 / 4 / 8 stages | Stereo wide / normal / mono | |
 | 7 | Reverb | Hall / plate / room | | |
 
 A few things are done specifically for bass. The chorus splits the signal and leaves everything below the crossover untouched, so the low end stays solid. The reverb only feeds the part above its low cut into the tank, and its tail rings out after you bypass. The compressor's sidechain filter stops the low strings pumping the whole signal. The octaver and synth are monophonic: play one note at a time and mute cleanly between notes.
 
 Full notes on each effect are in the comment at the top of its file in `firmware/effects/`.
+
+## What the effects are modelled on
+
+Each effect follows the pedal or circuit most often named as the reference for that sound on bass. Where the figures came from a manual, a schematic or a paper they are used as published; where nothing was published the values are estimates to tune by ear.
+
+| Effect | Reference | What was taken from it |
+|---|---|---|
+| Compressor | UREI 1176, Origin Effects Cali76 Compact Bass, Empress Bass Compressor | Attack down to 0.1 ms, release 50 ms to 1.1 s that slows after sustained compression, ratios up to 20:1, a high-pass in the detector, a parallel dry blend |
+| Octaver | Boss OC-2 | The signal path: rectify the note, flip its polarity every cycle, then a resonant third-order low-pass at 325 Hz (one octave down) and 153 Hz (two octaves down), worked out from the circuit's component values |
+| Bass synth | Minimoog and Moog Taurus bass patches, EHX Bass Micro Synth | Four-pole ladder low-pass, two saws detuned 10 cents apart, square sub oscillator, a filter envelope fired by each pluck |
+| Envelope filter | Mu-Tron III, MXR M82 Bass Envelope Filter | State variable filter with low, band and high-pass and up or down drive; the M82's 76 Hz to 3.2 kHz sweep, resonance and sensitivity ranges |
+| Chorus | Boss CE-2B, Roland Juno-60, MXR M83 Bass Chorus Deluxe | Triangle LFO, 2 to 8 ms delay, wet signal rolled off at 6.6 kHz, lows kept out of the wet path |
+| Phaser | MXR Phase 90, EHX Small Stone, Mu-Tron Phasor II | Four or six all-pass stages, triangle LFO, equal dry and wet mix, optional feedback |
+| Reverb | Dattorro plate (the published Lexicon-style tank) | The whole topology, delay lengths, diffusion coefficients and output taps from the 1997 paper |
+
+These are built from published behaviour and circuit values. None of it has been compared against the real pedals by ear or by measurement.
 
 ## Layout
 
@@ -82,4 +98,4 @@ The image pins libDaisy v9.0.0 because that is the first release that detects th
 
 ## Licence
 
-GPL-3.0, inherited from the Hothouse hardware layer (`firmware/hothouse.*`, Cleveland Music Co.). The reverb uses ReverbSc from DaisySP-LGPL.
+GPL-3.0, inherited from the Hothouse hardware layer (`firmware/hothouse.*`, Cleveland Music Co.).

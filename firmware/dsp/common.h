@@ -90,6 +90,39 @@ class Svf {
   float ic1_ = 0.0f, ic2_ = 0.0f;
 };
 
+// Four-pole (24 dB/octave) transistor-ladder style low-pass, the filter of
+// the Minimoog and Taurus. Zero-delay-feedback form, so it stays in tune and
+// stable while the cutoff is swept. Resonance runs 0..4; 4 is the edge of
+// self-oscillation.
+class Ladder {
+ public:
+  void Set(float hz, float resonance, float sample_rate) {
+    hz = Clamp(hz, 10.0f, 0.45f * sample_rate);
+    const float g = tanf(kPi * hz / sample_rate);
+    g_ = g / (1.0f + g);
+    k_ = resonance;
+  }
+  float Process(float x) {
+    const float g2 = g_ * g_;
+    const float feedback =
+        (g2 * g_ * s_[0] + g2 * s_[1] + g_ * s_[2] + s_[3]) * (1.0f - g_);
+    // Soft clipping inside the loop keeps a high-resonance peak in check,
+    // as the transistors do in the real circuit.
+    float u = SoftClip((x - k_ * feedback) / (1.0f + k_ * g2 * g2));
+    for (float& s : s_) {
+      const float v = (u - s) * g_;
+      u = v + s;
+      s = u + v;
+    }
+    return u;
+  }
+  void Reset() { s_[0] = s_[1] = s_[2] = s_[3] = 0.0f; }
+
+ private:
+  float g_ = 0.0f, k_ = 0.0f;
+  float s_[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+};
+
 // Peak envelope follower with separate attack and release times.
 class EnvFollower {
  public:
@@ -109,7 +142,7 @@ class EnvFollower {
   float att_ = 1.0f, rel_ = 1.0f, env_ = 0.0f;
 };
 
-// Sine LFO. Phase runs 0..1 so a second output can be read at an offset.
+// LFO. Phase runs 0..1 so a second output can be read at an offset.
 class Lfo {
  public:
   void SetFreq(float hz, float sample_rate) { inc_ = hz / sample_rate; }
@@ -119,6 +152,12 @@ class Lfo {
   }
   float Sine(float offset = 0.0f) const {
     return sinf(kTwoPi * (phase_ + offset));
+  }
+  // Triangle, -1..1, as the classic chorus and phaser pedals use.
+  float Triangle(float offset = 0.0f) const {
+    float p = phase_ + offset;
+    if (p >= 1.0f) p -= 1.0f;
+    return p < 0.5f ? 4.0f * p - 1.0f : 3.0f - 4.0f * p;
   }
   void Reset() { phase_ = 0.0f; }
 

@@ -13,8 +13,7 @@ STAMP := build/.image-stamp
 
 DOCKER_RUN := docker run --rm -v "$(CURDIR)":/work -w /work $(IMAGE)
 TEST_BUILD := g++ -std=gnu++14 -O2 -Wall -Wextra -Ifirmware \
-	-I/opt/DaisySP/DaisySP-LGPL/Source tests/test_dsp.cpp \
-	/opt/DaisySP/DaisySP-LGPL/Source/Effects/reverbsc.cpp -o build/test_dsp
+	tests/test_dsp.cpp -o build/test_dsp
 
 .PHONY: build test demo flash shell clean image
 

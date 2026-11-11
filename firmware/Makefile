@@ -3,9 +3,6 @@
 
 TARGET = bass_fx
 
-# ReverbSc lives in the LGPL part of DaisySP.
-USE_DAISYSP_LGPL = 1
-
 CPP_SOURCES = main.cpp hothouse.cpp
 C_INCLUDES = -I.
 

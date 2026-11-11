@@ -63,12 +63,14 @@ class PitchTracker {
     // much higher than the last one.
     const float fast = fast_.Process(s);
     const float slow = slow_.Process(s);
+    onset_ = false;
     if (fast > 3.0f * slow && fast > kNoiseFloor && onset_holdoff_ == 0) {
       cutoff_ = cutoff_target_ = kOpenCutoff;
       ApplyCutoff();
       has_pitch_ = false;
       ForgetGaps();
       onset_holdoff_ = static_cast<int>(0.05f * sr_);
+      onset_ = true;
     }
     if (onset_holdoff_ > 0) --onset_holdoff_;
 
@@ -134,6 +136,8 @@ class PitchTracker {
 
   // True on the sample where a new cycle of the fundamental begins.
   bool Trigger() const { return trigger_; }
+  // True on the sample where a new pluck is detected.
+  bool Onset() const { return onset_; }
   // Detected fundamental in Hz. Holds its last value while HasPitch() is
   // false.
   float Frequency() const { return freq_; }
@@ -208,6 +212,7 @@ class PitchTracker {
   float prev_ = 0.0f;
   bool armed_ = false;
   bool trigger_ = false;
+  bool onset_ = false;
   int since_cross_ = 0;
   int onset_holdoff_ = 0;
   float last_frac_ = 0.0f;

@@ -1,11 +1,18 @@
 // Stereo phaser.
 //
+// A chain of first-order all-pass stages swept by a triangle LFO and mixed
+// equally with the dry signal, which is how the MXR Phase 90 and EHX Small
+// Stone (four stages) and the Mu-Tron Phasor II (six) work. For the Phase 90
+// set four stages, mix at noon, centre at noon and depth around 2 o'clock;
+// feedback at zero is the early "script" pedal and around 10 o'clock the
+// later "block logo" one.
+//
 //   Knob 1  Rate         0.05 .. 8 Hz
 //   Knob 2  Depth        how far the notches sweep
 //   Knob 3  Feedback     sharper, more vocal notches
-//   Knob 4  Centre       80 Hz .. 2 kHz. Higher keeps the low end steadier.
+//   Knob 4  Centre       120 Hz .. 2.2 kHz. Higher keeps the low end steadier.
 //   Knob 5  Mix          noon gives the deepest notches
-//   Toggle 1  Stages: up 8, middle 6, down 4
+//   Toggle 1  Stages: up 6, middle 4, down 8
 //   Toggle 2  Stereo: up wide, middle normal, down mono
 //   Toggle 3  unused
 #pragma once
@@ -34,9 +41,9 @@ class Phaser final : public Effect {
     lfo_.SetFreq(dsp::ExpMap(c.knob[0], 0.05f, 8.0f), sr_);
     depth_octaves_ = c.knob[1] * 2.5f;
     feedback_ = c.knob[2] * 0.9f;
-    centre_ = dsp::ExpMap(c.knob[3], 80.0f, 2000.0f);
+    centre_ = dsp::ExpMap(c.knob[3], 120.0f, 2200.0f);
     mix_ = c.knob[4];
-    stages_ = c.toggle[0] == kUp ? 8 : (c.toggle[0] == kMiddle ? 6 : 4);
+    stages_ = c.toggle[0] == kUp ? 6 : (c.toggle[0] == kMiddle ? 4 : 8);
     spread_ = c.toggle[1] == kUp ? 0.5f
               : (c.toggle[1] == kMiddle ? 0.25f : 0.0f);
   }
@@ -46,8 +53,8 @@ class Phaser final : public Effect {
     for (size_t i = 0; i < size; ++i) {
       const float x = in[i];
       lfo_.Advance();
-      const float wet_l = Channel(0, x, lfo_.Sine());
-      const float wet_r = Channel(1, x, lfo_.Sine(spread_));
+      const float wet_l = Channel(0, x, lfo_.Triangle());
+      const float wet_r = Channel(1, x, lfo_.Triangle(spread_));
       out_l[i] = x + mix_ * (wet_l - x);
       out_r[i] = x + mix_ * (wet_r - x);
     }
@@ -78,7 +85,7 @@ class Phaser final : public Effect {
   float last_[2] = {0.0f, 0.0f};
   float depth_octaves_ = 1.5f, feedback_ = 0.3f, centre_ = 500.0f;
   float mix_ = 0.5f, spread_ = 0.25f;
-  int stages_ = 6;
+  int stages_ = 4;
 };
 
 }  // namespace fx

@@ -57,10 +57,10 @@ Hothouse hw;
 Led led_effect, led_active;
 daisy::PersistentStorage<Settings> storage(hw.seed.qspi);
 
-// Large buffers go in the Seed's SDRAM, leaving internal RAM for the reverb.
+// Large buffers go in the Seed's SDRAM.
 float DSY_SDRAM_BSS chorus_buffer[kChorusBufferSize];
 float DSY_SDRAM_BSS predelay_buffer[kPredelayBufferSize];
-daisysp::ReverbSc reverb_core;
+float DSY_SDRAM_BSS reverb_tank[fx::Reverb::kTankSize];
 
 fx::Compressor compressor;
 fx::Octaver octaver;
@@ -296,7 +296,7 @@ int main() {
   envelope_filter.Init(sample_rate);
   chorus.Init(sample_rate, chorus_buffer, kChorusBufferSize);
   phaser.Init(sample_rate);
-  reverb.Init(sample_rate, &reverb_core, predelay_buffer, kPredelayBufferSize);
+  reverb.Init(sample_rate, reverb_tank, predelay_buffer, kPredelayBufferSize);
 
   LoadSettings();
 

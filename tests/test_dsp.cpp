@@ -135,7 +135,7 @@ fx::Controls Knobs(float k1, float k2, float k3, float k4, float k5,
 
 float chorus_buffer[2400];
 float predelay_buffer[10000];
-daisysp::ReverbSc reverb_core;
+float reverb_tank[fx::Reverb::kTankSize];
 
 fx::Compressor compressor;
 fx::Octaver octaver;
@@ -274,7 +274,7 @@ void TestCompressor() {
   }
   // Threshold -26 dB, ratio 4:1, fastest attack, slowest release, no
   // make-up gain. 20 dB over the threshold should come out 15 dB quieter.
-  const fx::Controls c = Knobs(0.389f, 0.3787f, 0.0f, 1.0f, 1.0f, fx::kMiddle,
+  const fx::Controls c = Knobs(0.389f, 0.30103f, 0.0f, 1.0f, 1.0f, fx::kMiddle,
                                fx::kDown);
   Stereo out = Run(compressor, c, x);
   float peak = 0.0f;
@@ -284,6 +284,89 @@ void TestCompressor() {
   const float gr = dsp::LinToDb(peak / 0.5f);
   Check(fabsf(gr + 15.0f) < 2.0f, "gain reduction %.1f dB (expected -15 dB)",
         gr);
+}
+
+float Rms(const std::vector<float>& x, float from_s, float to_s) {
+  const size_t a = static_cast<size_t>(from_s * kSr);
+  const size_t b = static_cast<size_t>(to_s * kSr);
+  double sum = 0.0;
+  for (size_t i = a; i < b; ++i) sum += x[i] * x[i];
+  return static_cast<float>(sqrt(sum / (b - a)));
+}
+
+void TestLadder() {
+  printf("Ladder filter\n");
+  // Two octaves above the cutoff a four-pole filter is 48 dB down.
+  dsp::Ladder ladder;
+  ladder.Set(200.0f, 0.0f, kSr);
+  std::vector<float> y(static_cast<size_t>(kSr));
+  for (size_t i = 0; i < y.size(); ++i) {
+    y[i] = ladder.Process(0.5f * sinf(dsp::kTwoPi * 800.0f * i / kSr));
+  }
+  const float db = dsp::LinToDb(Rms(y, 0.5f, 1.0f) / (0.5f * 0.7071f));
+  Check(fabsf(db + 48.0f) < 3.0f, "800 Hz through a 200 Hz cutoff: %.1f dB "
+        "(expected -48 dB)", db);
+}
+
+void TestSynthEnvelope() {
+  printf("Bass synth filter envelope\n");
+  // A held note: the filter should open on the pluck and close again while
+  // the string is still ringing, so the upper harmonics die away early.
+  std::vector<float> x;
+  Pluck(x, 55.0f, 1.5f, 0.4f);
+  Stereo out = Run(bass_synth,
+                   Knobs(0.2f, 0.3f, 0.8f, 0.0f, 0.0f, fx::kMiddle, fx::kMiddle,
+                         fx::kUp),
+                   x);
+  const size_t early_a = static_cast<size_t>(0.05f * kSr);
+  const size_t early_b = static_cast<size_t>(0.15f * kSr);
+  const size_t late_a = static_cast<size_t>(0.6f * kSr);
+  const size_t late_b = static_cast<size_t>(0.7f * kSr);
+  const float early = PowerAt(out.l, early_a, early_b, 385.0f) /
+                      PowerAt(out.l, early_a, early_b, 55.0f);
+  const float late = PowerAt(out.l, late_a, late_b, 385.0f) /
+                     PowerAt(out.l, late_a, late_b, 55.0f);
+  Check(early > 10.0f * late, "7th harmonic against the fundamental: %.1f dB "
+        "just after the pluck, %.1f dB later",
+        10.0f * log10f(early), 10.0f * log10f(late));
+}
+
+void TestReverb() {
+  printf("Reverb\n");
+  // Decay knob set for an RT60 of 2 s on each programme, bright, no low cut:
+  // the tail should lose about 30 dB per second.
+  struct Programme {
+    const char* name;
+    int toggle;
+    float knob;
+  };
+  const Programme programmes[] = {{"plate", fx::kMiddle, 0.5579f},
+                                  {"hall", fx::kUp, 0.1383f}};
+  std::vector<float> x;
+  Pluck(x, 196.0f, 0.3f, 0.5f);
+  Silence(x, 3.0f);
+  for (const Programme& p : programmes) {
+    Stereo out =
+        Run(reverb, Knobs(p.knob, 1.0f, 1.0f, 0.0f, 0.0f, p.toggle), x);
+    const float drop = dsp::LinToDb(Rms(out.l, 0.5f, 0.7f)) -
+                       dsp::LinToDb(Rms(out.l, 1.5f, 1.7f));
+    Check(drop > 22.0f && drop < 38.0f,
+          "%s set to 2 s: tail falls %.1f dB in one second (expected 30 dB)",
+          p.name, drop);
+  }
+  // Left and right should differ, or it is not a stereo reverb.
+  Stereo out = Run(reverb, Knobs(0.5f, 0.6f, 1.0f, 0.3f, 0.0f), x);
+  double ll = 0.0, rr = 0.0, lr = 0.0;
+  for (size_t i = static_cast<size_t>(0.5f * kSr); i < out.l.size(); ++i) {
+    ll += out.l[i] * out.l[i];
+    rr += out.r[i] * out.r[i];
+    lr += out.l[i] * out.r[i];
+  }
+  const float corr = static_cast<float>(lr / sqrt(ll * rr + 1e-30));
+  Check(fabsf(corr) < 0.5f, "left and right tails are decorrelated (%.2f)",
+        corr);
+  Check(Rms(out.l, 0.4f, 0.6f) > 0.003f, "tail level %.4f with mix at full",
+        Rms(out.l, 0.4f, 0.6f));
 }
 
 void TestStability() {
@@ -380,12 +463,15 @@ int main(int argc, char** argv) {
   envelope_filter.Init(kSr);
   chorus.Init(kSr, chorus_buffer, 2400);
   phaser.Init(kSr);
-  reverb.Init(kSr, &reverb_core, predelay_buffer, 10000);
+  reverb.Init(kSr, reverb_tank, predelay_buffer, 10000);
 
   TestPitchTracker();
   TestOctaver();
   TestBassSynth();
   TestCompressor();
+  TestLadder();
+  TestSynthEnvelope();
+  TestReverb();
   TestStability();
 
   if (argc == 3 && std::string(argv[1]) == "--render") Render(argv[2]);

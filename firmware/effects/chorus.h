@@ -1,12 +1,19 @@
-// Bass chorus with a crossover.
+// Bass chorus with a crossover, voiced after the bucket-brigade classics.
 //
 // Modulating the lowest notes makes a bass sound seasick and thin, so the
 // signal is split first: everything below the crossover stays untouched and
-// centred, only the part above it is chorused, in stereo.
+// centred, only the part above it is chorused, in stereo. The Boss CE-2B and
+// MXR Bass Chorus Deluxe do the same with a high-pass near 140 to 160 Hz on
+// the wet path, which is about where knob 4 sits at noon.
 //
-//   Knob 1  Rate         0.05 .. 8 Hz
+// The delay is short (around 2 to 8 ms, the range of the CE-2 and the Juno-60
+// chorus), swept by a triangle LFO, and the wet signal is rolled off above
+// 6.6 kHz the way the filters around a bucket-brigade chip do it.
+//
+//   Knob 1  Rate         0.05 .. 8 Hz. The Juno's two settings are near 10
+//                        and 11 o'clock (0.5 and 0.86 Hz).
 //   Knob 2  Depth
-//   Knob 3  Mix
+//   Knob 3  Mix          noon is the equal mix of the originals
 //   Knob 4  Crossover    40 .. 800 Hz. Turn it down to chorus nearly everything.
 //   Knob 5  Feedback     adds the metallic sweep, strongest in flanger mode
 //   Toggle 1  Mode: up flanger, middle chorus, down vibrato (no dry highs)
@@ -26,6 +33,8 @@ class Chorus final : public Effect {
     sr_ = sample_rate;
     delay_.Init(buffer, buffer_size);
     slew_ = dsp::TimeCoef(0.050f, sr_);
+    dark_l_.SetFreq(6600.0f, sr_);
+    dark_r_.SetFreq(6600.0f, sr_);
     Reset();
   }
 
@@ -33,6 +42,8 @@ class Chorus final : public Effect {
     delay_.Reset();
     crossover_.Reset();
     lfo_.Reset();
+    dark_l_.Reset();
+    dark_r_.Reset();
     last_wet_ = 0.0f;
   }
 
@@ -49,8 +60,8 @@ class Chorus final : public Effect {
       centre_ms = 3.0f;
       swing_ms = 2.6f;
     } else if (mode == kMiddle) {  // chorus
-      centre_ms = 14.0f;
-      swing_ms = 6.0f;
+      centre_ms = 5.0f;
+      swing_ms = 3.2f;
     } else {  // vibrato
       centre_ms = 6.0f;
       swing_ms = 3.0f;
@@ -83,8 +94,10 @@ class Chorus final : public Effect {
 
       delay_.Write(high + feedback_ * last_wet_);
       lfo_.Advance();
-      const float wet_l = delay_.Read(centre_ + swing_ * lfo_.Sine());
-      const float wet_r = delay_.Read(centre_ + swing_ * lfo_.Sine(spread_));
+      const float wet_l =
+          dark_l_.Lp(delay_.Read(centre_ + swing_ * lfo_.Triangle()));
+      const float wet_r =
+          dark_r_.Lp(delay_.Read(centre_ + swing_ * lfo_.Triangle(spread_)));
       last_wet_ = wet_l;
 
       out_l[i] = low + dry_gain_ * high + wet_gain_ * wet_l;
@@ -95,7 +108,7 @@ class Chorus final : public Effect {
  private:
   float sr_ = 48000.0f;
   dsp::DelayLine delay_;
-  dsp::OnePole crossover_;
+  dsp::OnePole crossover_, dark_l_, dark_r_;
   dsp::Lfo lfo_;
   float slew_ = 1.0f;
   float centre_ = 600.0f, centre_target_ = 600.0f;

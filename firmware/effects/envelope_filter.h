@@ -1,8 +1,14 @@
 // Envelope filter (auto-wah). Dig in and the filter sweeps.
 //
+// A two-pole state variable filter with low, band and high-pass outputs and
+// an up or down drive, as in the Mu-Tron III. The sweep range (resting point
+// 76 Hz .. 1.3 kHz, top of sweep 3.2 kHz), the resonance range and the 46 dB
+// sensitivity range are the published figures of the MXR Bass Envelope
+// Filter, which keeps the sweep on the harmonics rather than the fundamental.
+//
 //   Knob 1  Sensitivity  set it so a hard pluck just reaches the top
-//   Knob 2  Frequency    where the sweep starts, 60 Hz .. 1.2 kHz
-//   Knob 3  Resonance
+//   Knob 2  Frequency    where the sweep rests, 76 Hz .. 1.3 kHz
+//   Knob 3  Resonance    a +8 dB .. +18 dB peak at the cutoff
 //   Knob 4  Decay        how quickly the filter falls back, 40 .. 600 ms
 //   Knob 5  Mix          dry .. filtered. Keep some dry for a solid low end.
 //   Toggle 1  Filter: up low-pass, middle band-pass, down high-pass
@@ -29,15 +35,15 @@ class EnvelopeFilter final : public Effect {
   }
 
   void Update(const Controls& c) override {
-    sensitivity_ = dsp::ExpMap(c.knob[0], 1.0f, 40.0f);
-    base_ = dsp::ExpMap(c.knob[1], 60.0f, 1200.0f);
-    q_ = dsp::ExpMap(c.knob[2], 0.7f, 8.0f);
-    env_.Set(0.003f, dsp::ExpMap(c.knob[3], 0.040f, 0.600f), sr_);
+    sensitivity_ = dsp::ExpMap(c.knob[0], 0.7f, 140.0f);
+    base_ = dsp::ExpMap(c.knob[1], 76.0f, 1300.0f);
+    q_ = dsp::ExpMap(c.knob[2], 2.5f, 8.0f);
+    env_.Set(0.005f, dsp::ExpMap(c.knob[3], 0.040f, 0.600f), sr_);
     mix_ = c.knob[4];
     type_ = c.toggle[0];
     sweep_ = c.toggle[1];
     // A resonant peak is loud; pull the filtered signal back as Q rises.
-    comp_ = 1.0f / sqrtf(q_ / 0.7f);
+    comp_ = 1.0f / sqrtf(q_ / 1.5f);
   }
 
   void Process(const float* in, float* out_l, float* out_r,
@@ -54,7 +60,7 @@ class EnvelopeFilter final : public Effect {
       } else {
         hz = base_ * 8.0f * powf(2.0f, -3.0f * e);
       }
-      filter_.Set(dsp::Clamp(hz, 30.0f, 10000.0f), q_, sr_);
+      filter_.Set(dsp::Clamp(hz, 60.0f, 3200.0f), q_, sr_);
       filter_.Process(x);
 
       const float wet = (type_ == kUp ? filter_.lp
